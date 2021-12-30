@@ -1,0 +1,6 @@
+[submodule "restinio"]
+	path = restinio
+	url = https://github.com/Stiffstream/restinio
+[submodule "cpp/restinio"]
+	path = cpp/restinio
+	url = https://github.com/Stiffstream/restinio
