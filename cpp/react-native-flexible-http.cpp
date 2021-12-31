@@ -4,10 +4,11 @@
 #include <string>
 //#include "libhttp/include/libhttp.h"
 #include "cpp-httplib/httplib.h"
+#include <ReactCommon/CallInvoker.h>
 
-#define EXAMPLE_URI "/example"
-#define EXIT_URI "/exit"
-#define PORT "8888"
+#define CALLBACK_CONTAINER_NAME "__httpServer_callback_container"
+
+static int currentJSIRuntimeIteration = 0;
 
 // Turbomodule implementation following here
 // https://github.com/facebook/react-native/blob/bf2500e38ec06d2de501c5a3737e396fe43d1fae/ReactCommon/jsi/jsi.h#L80
@@ -35,7 +36,7 @@ constexpr inline auto operator"" _sh(const char *s, size_t) {
 template <typename recordFromMultimapMapType>
 facebook::jsi::Object recordFromMultimap(facebook::jsi::Runtime &runtime,
                                          recordFromMultimapMapType inmap
-                               ) {
+                                         ) {
     facebook::jsi::Object ret(runtime);
     for (auto const& entry : inmap)
     {
@@ -48,15 +49,18 @@ facebook::jsi::Object recordFromMultimap(facebook::jsi::Runtime &runtime,
 using namespace facebook;
 using namespace jsi;
 
+static const std::string nullStr = "";
 
 static int GlobalServerCallbackIncrement = 0;
 class SKHTTPServerCallbackContainer {
 public:
+    std::string regex = nullStr;
     jsi::Function callback;
     int id;
     SKHTTPServerCallbackContainer(
-                                  jsi::Function cb
-                                  ) : callback(std::move(cb))
+                                  jsi::Function cb,
+                                  std::string pathRegex = nullStr
+                                  ) : callback(std::move(cb)), regex(pathRegex)
     {
         GlobalServerCallbackIncrement++;
         id = GlobalServerCallbackIncrement;
@@ -109,7 +113,7 @@ public:
             } break;
             case "params"_sh: {
                 return recordFromMultimap(runtime, req.params);
-//                return jsi::Value(jsi::String::createFromUtf8(runtime, req.params));
+                //                return jsi::Value(jsi::String::createFromUtf8(runtime, req.params));
             } break;
             default: break;
         }
@@ -149,8 +153,8 @@ public:
             case "has_header"_sh: {
                 return jsi::Function::createFromHostFunction
                 (runtime, name, 1,
-                 [=](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
-                    size_t count) -> jsi::Value
+                 [&](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
+                     size_t count) -> jsi::Value
                  {
                     std::string key = arguments[0].asString(runtime).utf8(runtime);
                     return jsi::Value(res.has_header(key.c_str()));
@@ -160,8 +164,8 @@ public:
             case "set_header"_sh: {
                 return jsi::Function::createFromHostFunction
                 (runtime, name, 2,
-                 [=](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
-                    size_t count) -> jsi::Value
+                 [&](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
+                     size_t count) -> jsi::Value
                  {
                     std::string key = arguments[0].asString(runtime).utf8(runtime);
                     std::string value = arguments[1].asString(runtime).utf8(runtime);
@@ -173,8 +177,8 @@ public:
             case "set_redirect"_sh: {
                 return jsi::Function::createFromHostFunction
                 (runtime, name, 2,
-                 [=](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
-                    size_t count) -> jsi::Value
+                 [&](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
+                     size_t count) -> jsi::Value
                  {
                     std::string url = arguments[0].asString(runtime).utf8(runtime);
                     if(arguments[1].isNumber()) {
@@ -187,10 +191,11 @@ public:
                  );
             } break;
             case "set_content"_sh: {
+                printf("set content called");
                 return jsi::Function::createFromHostFunction
                 (runtime, name, 2,
-                 [=](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
-                    size_t count) -> jsi::Value
+                 [&](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
+                     size_t count) -> jsi::Value
                  {
                     std::string content = arguments[0].asString(runtime).utf8(runtime);
                     if(arguments[1].isString()) {
@@ -198,6 +203,7 @@ public:
                         res.set_content(content, content_type.c_str());
                     }
                     else { res.set_content(content, "text/html"); }
+                    printf("set content to %s", content.c_str());
                     return jsi::Value::undefined();
                 }
                  );
@@ -208,9 +214,23 @@ public:
     }
 };
 
-class HTTPServer : public jsi::HostObject {
+static jsi::Value genHttpCallbackStorageObject(jsi::Runtime &runtime) {
+    jsi::Object obj = jsi::Object(runtime);
+    obj.setProperty(runtime, "get", runtime.global().getPropertyAsFunction(runtime, "Map").callAsConstructor(runtime));
+    obj.setProperty(runtime, "put", runtime.global().getPropertyAsFunction(runtime, "Map").callAsConstructor(runtime));
+    obj.setProperty(runtime, "post", runtime.global().getPropertyAsFunction(runtime, "Map").callAsConstructor(runtime));
+    obj.setProperty(runtime, "delete", runtime.global().getPropertyAsFunction(runtime, "Map").callAsConstructor(runtime));
+    return obj;
+}
+
+static int NewHTTPServerID = 0;
+class HTTPServer : public jsi::HostObject, public std::enable_shared_from_this<HTTPServer> {
+    jsi::Runtime &jsiRuntime;
     httplib::Server svr;
+    int instanceID;
+    int jsiRuntimeIteration;
     std::thread httpThread;
+    std::shared_ptr<react::CallInvoker> invoker;
     
     std::set<SKHTTPServerCallbackContainer, SKHTTPServerCallbackContainerComparison> getCallbacks;
     std::set<SKHTTPServerCallbackContainer, SKHTTPServerCallbackContainerComparison> postCallbacks;
@@ -218,19 +238,93 @@ class HTTPServer : public jsi::HostObject {
     std::set<SKHTTPServerCallbackContainer, SKHTTPServerCallbackContainerComparison> deleteCallbacks;
     
 public:
-    HTTPServer() {
-        
+    HTTPServer(std::shared_ptr<react::CallInvoker> _invoker, jsi::Runtime &runtime) :
+    invoker(_invoker), jsiRuntime(runtime)  {
+        NewHTTPServerID++;
+        instanceID = NewHTTPServerID;
+        jsiRuntimeIteration = currentJSIRuntimeIteration;
     }
     // Called when runtime garbage collector finalizes this object
     ~HTTPServer() {
         // TODO: CLEANUP
         stop();
+        if(jsiRuntimeIteration == currentJSIRuntimeIteration) {
+            removeGlobalCallback();
+        }
         // Clear all callbacks;
         getCallbacks.clear();
         postCallbacks.clear();
         putCallbacks.clear();
         deleteCallbacks.clear();
         printf("Destroyed HTTPServer");
+    }
+    void removeGlobalCallback() {
+        jsi::Runtime &runtime = jsiRuntime;
+        jsi::Object globalCBs = runtime.global().getPropertyAsObject(runtime, CALLBACK_CONTAINER_NAME);
+        globalCBs.getPropertyAsFunction(runtime, "delete").callWithThis(runtime, globalCBs, jsi::Value(instanceID));
+        runtime.global().setProperty(runtime, CALLBACK_CONTAINER_NAME, globalCBs);
+    }
+    
+    void addCallbackForPath(std::string method, std::string path, jsi::Function callback) {
+        /*
+         think structure of
+         global.CALLBACK_CONTAINER_NAME = Record<
+         number, // instanceID
+         Record<HTTPMethod, Map<PathName, Function>> // Record mapping method to pathname maps
+         >
+         */
+        jsi::Runtime &runtime = jsiRuntime;
+        jsi::Object globalCBs = runtime.global().getPropertyAsObject(runtime, CALLBACK_CONTAINER_NAME);
+        jsi::Value myCallbackContainerValue = globalCBs.getPropertyAsFunction(runtime, "get").callWithThis(runtime, globalCBs, jsi::Value(instanceID));
+        if(myCallbackContainerValue.isUndefined()) {
+            // set new empty map if undefined
+            // Create new map
+            myCallbackContainerValue = genHttpCallbackStorageObject(runtime);
+            globalCBs.getPropertyAsFunction(runtime, "set").callWithThis(runtime, globalCBs, jsi::Value(instanceID), myCallbackContainerValue);
+            runtime.global().setProperty(runtime, CALLBACK_CONTAINER_NAME, globalCBs);
+        }
+        jsi::Object myCallbackContainer = myCallbackContainerValue.asObject(runtime);
+        jsi::Object meMap = myCallbackContainer.getProperty(runtime, jsi::String::createFromUtf8(runtime, method)).asObject(runtime);
+        meMap.getPropertyAsFunction(runtime, "set").callWithThis(runtime, meMap, jsi::String::createFromUtf8(runtime, path), callback);
+        globalCBs.setProperty(runtime, CALLBACK_CONTAINER_NAME, meMap);
+        runtime.global().setProperty(runtime, CALLBACK_CONTAINER_NAME, globalCBs);
+    }
+    
+    void executeCallbackForPath(std::string method, std::string path, const httplib::Request& req, httplib::Response& res) {
+        std::mutex m;
+        // Lock this thread's mutex
+        m.lock();
+        invoker.get()->invokeAsync([&](){
+            jsi::Runtime& runtime = jsiRuntime;
+            jsi::Object globalCBs = runtime.global().getPropertyAsObject(runtime, CALLBACK_CONTAINER_NAME);
+            jsi::Value meContainerValue = globalCBs.getPropertyAsFunction(runtime, "get").callWithThis(jsiRuntime, globalCBs, jsi::Value(instanceID));
+            jsi::Value meValue = meContainerValue.asObject(runtime).getProperty(runtime, jsi::String::createFromUtf8(runtime, method));
+            jsi::Object meMap = meValue.asObject(runtime);
+            jsi::Value callbackValue = meMap.getPropertyAsFunction(runtime, "get").callWithThis(jsiRuntime, meMap, jsi::String::createFromUtf8(runtime, path));
+            jsi::Function callback = callbackValue.asObject(runtime).asFunction(runtime);
+            printf("invoking invoker");
+            if(!callback.isFunction(jsiRuntime)) {
+                printf("is not function");
+                return;
+            }
+            jsi::Object request = jsi::Object::createFromHostObject(jsiRuntime, std::make_shared<HTTPRequestWrapper>(req));
+            jsi::Object response = jsi::Object::createFromHostObject(jsiRuntime, std::make_shared<HTTPResponseWrapper>(res));
+            callback.call(runtime, request, response);
+            m.unlock();
+        });
+        
+        // "try" to lock this thread's mutex again, but it's not going to be unlocked until
+        // m.unlock() is called when the asynchronous Get call is finished!
+        m.lock();
+        m.unlock();
+        switch(string_hash(method.c_str())) {
+            case "GET"_sh: {
+                
+            } break;
+            case "POST"_sh: {
+                
+            } break;
+        }
     }
     
     // When JS wants a property with a given name from the HostObject,
@@ -252,7 +346,7 @@ public:
                 return jsi::Function::createFromHostFunction
                 (runtime, name, 1,
                  [=](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
-                    size_t count) -> jsi::Value
+                     size_t count) -> jsi::Value
                  {
                     int port = 8080;
                     if(count > 0) {
@@ -269,21 +363,108 @@ public:
                 (runtime,
                  name,
                  2,
-                 [&](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
-                    size_t count) -> jsi::Value
+                 [&, this](jsi::Runtime &_runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
+                           size_t count) -> jsi::Value
                  {
-//                    thisValue.getObject(runtime).getProperty(runtime, "get");
-                    //                    if(count < 2) {
-                    //                        return jsi::JSError(runtime, jsi::String::createFromAscii(runtime, "Argument length less than 2"));
-                    //                    }
+                    jsi::Runtime &runtime = jsiRuntime;
+                    // confirmed: `thisValue` is equal to this `HTTPServer` object
+                    //                    printf("thisValue is this? %d", thisValue.asObject(runtime).getHostObject(runtime).get() == this);
                     std::string path = arguments[0].asString(runtime).utf8(runtime);
                     jsi::Function callback = arguments[1].asObject(runtime).asFunction(runtime);
                     //                    return jsi::Value::undefined();
+                    if(!callback.isFunction(runtime)) {
+                        printf("Second argument not a function");
+                        return jsi::Value::undefined();
+                    }
                     
+                    addCallbackForPath("get", path, std::move(callback));
+                    svr.Get(path, [&, this, path](const httplib::Request& req, httplib::Response& res) {
+                        executeCallbackForPath("get", path, req, res);
+                    });
+                    printf("added get at %s", path.c_str());
                     return thisValue.asObject(runtime);
                 }
                  );
             } break;
+            case "put"_sh: {
+                return jsi::Function::createFromHostFunction
+                (runtime,
+                 name,
+                 2,
+                 [&](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
+                     size_t count) -> jsi::Value
+                 {
+                    
+                    std::string path = arguments[0].asString(runtime).utf8(runtime);
+                    jsi::Function callback = arguments[1].asObject(runtime).asFunction(runtime);
+                    //                    return jsi::Value::undefined();
+                    
+                    // callbacks
+                    //                    getCallbacks.insert(SKHTTPServerCallbackContainer(std::move(callback)));
+                    svr.Put(path, [&](const httplib::Request& req, httplib::Response& res) {
+                        invoker.get()->invokeAsync([&](){
+                            jsi::Object request = jsi::Object::createFromHostObject(runtime, std::make_shared<HTTPRequestWrapper>(req));
+                            jsi::Object response = jsi::Object::createFromHostObject(runtime, std::make_shared<HTTPResponseWrapper>(res));
+                            callback.call(runtime, request, response);
+                        });
+                    });
+                    return thisValue.asObject(runtime);
+                }
+                 );
+            } break;
+            case "post"_sh: {
+                return jsi::Function::createFromHostFunction
+                (runtime,
+                 name,
+                 2,
+                 [&](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
+                     size_t count) -> jsi::Value
+                 {
+                    
+                    std::string path = arguments[0].asString(runtime).utf8(runtime);
+                    jsi::Function callback = arguments[1].asObject(runtime).asFunction(runtime);
+                    //                    return jsi::Value::undefined();
+                    
+                    // callbacks
+                    //                    getCallbacks.insert(SKHTTPServerCallbackContainer(std::move(callback)));
+                    svr.Post(path, [&](const httplib::Request& req, httplib::Response& res) {
+                        invoker.get()->invokeAsync([&](){
+                            jsi::Object request = jsi::Object::createFromHostObject(runtime, std::make_shared<HTTPRequestWrapper>(req));
+                            jsi::Object response = jsi::Object::createFromHostObject(runtime, std::make_shared<HTTPResponseWrapper>(res));
+                            callback.call(runtime, request, response);
+                        });
+                    });
+                    return thisValue.asObject(runtime);
+                }
+                 );
+            } break;
+            case "delete"_sh: {
+                return jsi::Function::createFromHostFunction
+                (runtime,
+                 name,
+                 2,
+                 [&](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
+                     size_t count) -> jsi::Value
+                 {
+                    
+                    std::string path = arguments[0].asString(runtime).utf8(runtime);
+                    jsi::Function callback = arguments[1].asObject(runtime).asFunction(runtime);
+                    //                    return jsi::Value::undefined();
+                    
+                    // callbacks
+                    //                    getCallbacks.insert(SKHTTPServerCallbackContainer(std::move(callback)));
+                    svr.Delete(path, [&](const httplib::Request& req, httplib::Response& res) {
+                        invoker.get()->invokeAsync([&](){
+                            jsi::Object request = jsi::Object::createFromHostObject(runtime, std::make_shared<HTTPRequestWrapper>(req));
+                            jsi::Object response = jsi::Object::createFromHostObject(runtime, std::make_shared<HTTPResponseWrapper>(res));
+                            callback.call(runtime, request, response);
+                        });
+                    });
+                    return thisValue.asObject(runtime);
+                }
+                 );
+            } break;
+                
                 
             case "stop"_sh: {
                 return jsi::Function::createFromHostFunction
@@ -291,7 +472,7 @@ public:
                  name,
                  0,
                  [&](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
-                    size_t count) -> jsi::Value
+                     size_t count) -> jsi::Value
                  {
                     stop();
                     return thisValue.asObject(runtime);
@@ -308,9 +489,9 @@ public:
     }
     
     // When JS wants to set a property with a given name on the HostObject,
-      // it will call this method. If it throws an exception, the call will
-      // throw a JS \c Error object. By default this throws a type error exception
-      // mimicking the behavior of a frozen object in strict mode.
+    // it will call this method. If it throws an exception, the call will
+    // throw a JS \c Error object. By default this throws a type error exception
+    // mimicking the behavior of a frozen object in strict mode.
     void set(Runtime& runtime, const PropNameID& name, const Value& value) {
         std::string methodName = name.utf8(runtime);
         // String hash switch case implementation as seen here
@@ -323,38 +504,48 @@ public:
             case "put"_sh:
             case "delete"_sh: {
                 // Do nothing.
-//                return jsi::JSError(runtime, jsi::String::createFromAscii(runtime, "Cannot assign to property"));
+                //                return jsi::JSError(runtime, jsi::String::createFromAscii(runtime, "Cannot assign to property"));
                 jsi::HostObject::set(runtime, name, value);
             } break;
             default: {
-                
-            }
+                //                auto obj = jsi::Object::createFromHostObject(runtime, shared_from_this());
+                //                runtime.setPropertyValue(obj, jsi::String::createFromUtf8(runtime, methodName), jsi::Value::undefined());
+            } break;
         }
     }
     
     void start(int port = 8080) {
-        svr.Get("/", [this](const httplib::Request& req, httplib::Response& res) {
-            res.set_content("ohello world", "text/html");
-            HTTPRequestWrapper request(req);
-            HTTPResponseWrapper response(res);
-            for(const SKHTTPServerCallbackContainer &c : getCallbacks) {
-                
-            }
-        });
-        svr.Get(".*", [](const httplib::Request& req, httplib::Response& res) {
-            res.set_content("ohello catch all", "text/html");
-        });
-        // TODO: HandlerWithContentReader
-        svr.Post(".*", [](const httplib::Request& req, httplib::Response& res) {
-        });
-        svr.Put(".*", [](const httplib::Request& req, httplib::Response& res) {
-        });
-        svr.Delete(".*", [](const httplib::Request& req, httplib::Response& res) {
-        });
+        
+        //        if(!svr.is_valid()) {
+        //            printf("Invalid server");
+        //            return;
+        //        }
+        //        svr.Get("/", [this](const httplib::Request& req, httplib::Response& res) {
+        //            res.set_content("ohello world", "text/html");
+        ////            invoker.get()->invokeAsync([&](){
+        ////
+        ////                jsi::Object request = jsi::Object::createFromHostObject(runtime, std::make_shared<HTTPRequestWrapper>(req));
+        ////                jsi::Object response = jsi::Object::createFromHostObject(runtime, std::make_shared<HTTPResponseWrapper>(res));
+        ////                for(const SKHTTPServerCallbackContainer &c : getCallbacks) {
+        ////                    c.callback.call(runtime, request, response);
+        ////                    //                    c.callback.call(runtime, (jsi::Value *)args, 2);
+        ////                }
+        ////            });
+        //        });
+        //        svr.Get(".*", [](const httplib::Request& req, httplib::Response& res) {
+        //            res.set_content("ohello catch all", "text/html");
+        //        });
+        //        // TODO: HandlerWithContentReader
+        //        svr.Post(".*", [](const httplib::Request& req, httplib::Response& res) {
+        //        });
+        //        svr.Put(".*", [](const httplib::Request& req, httplib::Response& res) {
+        //        });
+        //        svr.Delete(".*", [](const httplib::Request& req, httplib::Response& res) {
+        //        });
         // Run servers
         // Need to run on another thread because otherwise crash lol
         httpThread = std::thread([&]() { svr.listen("localhost", port); });
-//        svr.listen("localhost", port);
+        //        svr.listen("localhost", port);
         printf("started listening at port %d", port);
     }
     
@@ -376,21 +567,28 @@ int multiply(float a, float b) {
     return a * b;
 }
 
-void install(jsi::Runtime &jsiRuntime) {
+void install(jsi::Runtime &jsiRuntime, std::shared_ptr<react::CallInvoker> invoker) {
     auto createHTTPServer =
     jsi::Function::createFromHostFunction(
                                           jsiRuntime,
                                           PropNameID::forAscii(jsiRuntime, "createHTTPServer"),
                                           0,
-                                          [](Runtime &runtime, const Value &thisValue, const Value *arguments,
-                                             size_t count) -> Value
+                                          [&, invoker](Runtime &runtime, const Value &thisValue, const Value *arguments,
+                                                       size_t count) -> Value
                                           {
-                                              jsi::Object object = jsi::Object::createFromHostObject(runtime, std::make_shared<HTTPServer>());
+                                              auto obj = std::make_shared<HTTPServer>(invoker, runtime);
+                                              jsi::Object object = jsi::Object::createFromHostObject(runtime, obj);
                                               return object;
                                           });
-    
     jsiRuntime.global().setProperty(jsiRuntime, "createHTTPServer",
                                     std::move(createHTTPServer));
+    jsi::Function mapFunction = jsiRuntime.global().getPropertyAsFunction(jsiRuntime, "Map");
+    jsi::Value callbackMap = mapFunction.callAsConstructor(jsiRuntime);
+    jsiRuntime.global().setProperty(jsiRuntime, CALLBACK_CONTAINER_NAME, callbackMap);
+}
+
+void cleanup(jsi::Runtime &jsiRuntime) {
+    currentJSIRuntimeIteration += 1;
 }
 
 };

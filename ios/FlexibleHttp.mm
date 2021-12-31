@@ -3,6 +3,10 @@
 #import <React/RCTUtils.h>
 #import <React/RCTBridge+Private.h>
 #import <jsi/jsi.h>
+#import <ReactCommon/CallInvoker.h>
+#import <ReactCommon/RCTTurboModuleManager.h>
+
+//#import <RCTTurboModule.h>
 /*
  * Example of initialization from https://github.com/ammarahm-ed/react-native-jsi-template/blob/master/ios/SimpleJsi.mm
  */
@@ -36,6 +40,7 @@ RCT_EXPORT_METHOD(multiply:(nonnull NSNumber*)a withB:(nonnull NSNumber*)b
 }
 
 -(void)installLibrary {
+//    self.bridge.reactInstance;
     RCTCxxBridge *cxxBridge = (RCTCxxBridge *)self.bridge;
     if (!cxxBridge.runtime) {
         
@@ -59,8 +64,14 @@ RCT_EXPORT_METHOD(multiply:(nonnull NSNumber*)a withB:(nonnull NSNumber*)b
         });
         return;
     }
-    
-    example::install(*(facebook::jsi::Runtime *)cxxBridge.runtime);
+    facebook::jsi::Runtime *runtime = (facebook::jsi::Runtime *)cxxBridge.runtime;
+    example::install(*runtime, cxxBridge.jsCallInvoker);
+}
+
+- (void)invalidate {
+    RCTCxxBridge *cxxBridge = (RCTCxxBridge *)self.bridge;
+    facebook::jsi::Runtime *runtime = (facebook::jsi::Runtime *)cxxBridge.runtime;
+    example::cleanup(*runtime);
 }
 //RCT_EXPORT_METHOD(createServer:(NSDictionary *)args
 //                  withResolver:(RCTPromiseResolveBlock)resolve
