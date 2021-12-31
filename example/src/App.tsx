@@ -11,16 +11,21 @@ export default function App() {
   }, []);
   const cb = React.useCallback((req: HTTPLibServerRequest, res: HTTPLibServerResponse)=>{
     console.log('callback called with headers', res.headers);
-    res.set_content('my content is extremely awesome yahooooooo oh yeah oh yeah baby bring it on! The battle is on bitch');
+    res.set_content('Goodbye worl hasdhjfk;ashjfkdl;as');
     console.log('body is', res.body);
   }, []);
 
   React.useEffect(()=>{
     console.log('about to create server');
     const server = createHTTPServer();
-    console.log('createdd server');
+    console.log('created server');
     server.get('/', cb);
-    server.listen(5002);
+    server.get('/noob.*', (req, res)=>{
+      console.log('path is', req.path);
+      console.log('params are', req.params);
+      res.set_content('Ur a noob');
+    });
+    server.listen(8001);
     return ()=>{
       server.stop();
     }

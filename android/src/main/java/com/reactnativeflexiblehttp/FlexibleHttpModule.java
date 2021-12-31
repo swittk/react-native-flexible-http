@@ -7,13 +7,22 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.module.annotations.ReactModule;
+import com.facebook.soloader.SoLoader;
 
+// In initialization, get CallInvoker for Android (https://github.com/react-native-community/discussions-and-proposals/issues/91#issuecomment-973847136)
+// This site here helps a lot with JSI initialization for me who knows little about Android-specific stuff
+// also inspired by here https://github.com/SudoPlz/sp-react-native-mqtt/blob/master/android/src/main/java/com/tuanpm/RCTMqtt/RCTMqttModule.java#L134:L137
 @ReactModule(name = FlexibleHttpModule.NAME)
 public class FlexibleHttpModule extends ReactContextBaseJavaModule {
     public static final String NAME = "FlexibleHttp";
+    private final ReactApplicationContext reactContext;
 
     public FlexibleHttpModule(ReactApplicationContext reactContext) {
         super(reactContext);
+        this.reactContext = reactContext;
+        // TODO: does this belong here
+        // Get jsCallInvoker https://github.com/react-native-community/discussions-and-proposals/issues/40#issuecomment-858375750
+        FlexibleHttpModule.install(this.reactContext, this.reactContext.getCatalystInstance().getJSCallInvokerHolder());
     }
 
     @Override
@@ -21,6 +30,27 @@ public class FlexibleHttpModule extends ReactContextBaseJavaModule {
     public String getName() {
         return NAME;
     }
+
+    // These lines are inspired by https://github.com/mrousavy/react-native-multithreading/blob/5f9a91b9edb94ab260767831dafa2e55f91af407/android/src/main/java/com/reactnativemultithreading/MultithreadingModule.java#L42
+    // Adapted to fit implementation inspired by https://ospfranco.com/post/2021/02/24/how-to-create-a-javascript-jsi-module/
+    private static native void initialize(long jsiRuntimePointer,
+                                           CallInvokerHolderImpl jsCallInvokerHolder);
+    private static native void cleanup(long jsiRuntimePointer);
+
+
+    // This is the method that will need to be called at module startup in order to initialize stuff
+    public static void install(ReactApplicationContext context, JavaScriptContextHolder jsContext) {
+      CallInvokerHolderImpl holder = (CallInvokerHolderImpl) context.getCatalystInstance().getJSCallInvokerHolder();
+      FlexibleHttpModule.initialize(jsContext.get(), holder);
+    }
+
+    // This method is equivalent to Objective-C's 'invalidate'
+    @Override
+    public void onCatalystInstanceDestroy() {
+        FlexibleHttpModule.cleanup(this.reactContext);
+        // FlexibleHttpModule.cleanup(this.getReactApplicationContext());
+    }
+
 
     static {
         try {

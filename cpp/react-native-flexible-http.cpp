@@ -231,12 +231,6 @@ class HTTPServer : public jsi::HostObject, public std::enable_shared_from_this<H
     int jsiRuntimeIteration;
     std::thread httpThread;
     std::shared_ptr<react::CallInvoker> invoker;
-    
-    std::set<SKHTTPServerCallbackContainer, SKHTTPServerCallbackContainerComparison> getCallbacks;
-    std::set<SKHTTPServerCallbackContainer, SKHTTPServerCallbackContainerComparison> postCallbacks;
-    std::set<SKHTTPServerCallbackContainer, SKHTTPServerCallbackContainerComparison> putCallbacks;
-    std::set<SKHTTPServerCallbackContainer, SKHTTPServerCallbackContainerComparison> deleteCallbacks;
-    
 public:
     HTTPServer(std::shared_ptr<react::CallInvoker> _invoker, jsi::Runtime &runtime) :
     invoker(_invoker), jsiRuntime(runtime)  {
@@ -252,10 +246,6 @@ public:
             removeGlobalCallback();
         }
         // Clear all callbacks;
-        getCallbacks.clear();
-        postCallbacks.clear();
-        putCallbacks.clear();
-        deleteCallbacks.clear();
         printf("Destroyed HTTPServer");
     }
     void removeGlobalCallback() {
@@ -366,22 +356,18 @@ public:
                  [&, this](jsi::Runtime &_runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
                            size_t count) -> jsi::Value
                  {
-                    jsi::Runtime &runtime = jsiRuntime;
                     // confirmed: `thisValue` is equal to this `HTTPServer` object
-                    //                    printf("thisValue is this? %d", thisValue.asObject(runtime).getHostObject(runtime).get() == this);
+                    jsi::Runtime &runtime = jsiRuntime;
                     std::string path = arguments[0].asString(runtime).utf8(runtime);
                     jsi::Function callback = arguments[1].asObject(runtime).asFunction(runtime);
-                    //                    return jsi::Value::undefined();
                     if(!callback.isFunction(runtime)) {
                         printf("Second argument not a function");
                         return jsi::Value::undefined();
                     }
-                    
                     addCallbackForPath("get", path, std::move(callback));
                     svr.Get(path, [&, this, path](const httplib::Request& req, httplib::Response& res) {
                         executeCallbackForPath("get", path, req, res);
                     });
-                    printf("added get at %s", path.c_str());
                     return thisValue.asObject(runtime);
                 }
                  );
@@ -391,22 +377,20 @@ public:
                 (runtime,
                  name,
                  2,
-                 [&](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
-                     size_t count) -> jsi::Value
+                 [&, this](jsi::Runtime &_runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
+                           size_t count) -> jsi::Value
                  {
-                    
+                    // confirmed: `thisValue` is equal to this `HTTPServer` object
+                    jsi::Runtime &runtime = jsiRuntime;
                     std::string path = arguments[0].asString(runtime).utf8(runtime);
                     jsi::Function callback = arguments[1].asObject(runtime).asFunction(runtime);
-                    //                    return jsi::Value::undefined();
-                    
-                    // callbacks
-                    //                    getCallbacks.insert(SKHTTPServerCallbackContainer(std::move(callback)));
-                    svr.Put(path, [&](const httplib::Request& req, httplib::Response& res) {
-                        invoker.get()->invokeAsync([&](){
-                            jsi::Object request = jsi::Object::createFromHostObject(runtime, std::make_shared<HTTPRequestWrapper>(req));
-                            jsi::Object response = jsi::Object::createFromHostObject(runtime, std::make_shared<HTTPResponseWrapper>(res));
-                            callback.call(runtime, request, response);
-                        });
+                    if(!callback.isFunction(runtime)) {
+                        printf("Second argument not a function");
+                        return jsi::Value::undefined();
+                    }
+                    addCallbackForPath("get", path, std::move(callback));
+                    svr.Put(path, [&, this, path](const httplib::Request& req, httplib::Response& res) {
+                        executeCallbackForPath("put", path, req, res);
                     });
                     return thisValue.asObject(runtime);
                 }
@@ -417,22 +401,20 @@ public:
                 (runtime,
                  name,
                  2,
-                 [&](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
-                     size_t count) -> jsi::Value
+                 [&, this](jsi::Runtime &_runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
+                           size_t count) -> jsi::Value
                  {
-                    
+                    // confirmed: `thisValue` is equal to this `HTTPServer` object
+                    jsi::Runtime &runtime = jsiRuntime;
                     std::string path = arguments[0].asString(runtime).utf8(runtime);
                     jsi::Function callback = arguments[1].asObject(runtime).asFunction(runtime);
-                    //                    return jsi::Value::undefined();
-                    
-                    // callbacks
-                    //                    getCallbacks.insert(SKHTTPServerCallbackContainer(std::move(callback)));
-                    svr.Post(path, [&](const httplib::Request& req, httplib::Response& res) {
-                        invoker.get()->invokeAsync([&](){
-                            jsi::Object request = jsi::Object::createFromHostObject(runtime, std::make_shared<HTTPRequestWrapper>(req));
-                            jsi::Object response = jsi::Object::createFromHostObject(runtime, std::make_shared<HTTPResponseWrapper>(res));
-                            callback.call(runtime, request, response);
-                        });
+                    if(!callback.isFunction(runtime)) {
+                        printf("Second argument not a function");
+                        return jsi::Value::undefined();
+                    }
+                    addCallbackForPath("post", path, std::move(callback));
+                    svr.Post(path, [&, this, path](const httplib::Request& req, httplib::Response& res) {
+                        executeCallbackForPath("post", path, req, res);
                     });
                     return thisValue.asObject(runtime);
                 }
@@ -443,22 +425,20 @@ public:
                 (runtime,
                  name,
                  2,
-                 [&](jsi::Runtime &runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
-                     size_t count) -> jsi::Value
+                 [&, this](jsi::Runtime &_runtime, const jsi::Value &thisValue, const jsi::Value *arguments,
+                           size_t count) -> jsi::Value
                  {
-                    
+                    // confirmed: `thisValue` is equal to this `HTTPServer` object
+                    jsi::Runtime &runtime = jsiRuntime;
                     std::string path = arguments[0].asString(runtime).utf8(runtime);
                     jsi::Function callback = arguments[1].asObject(runtime).asFunction(runtime);
-                    //                    return jsi::Value::undefined();
-                    
-                    // callbacks
-                    //                    getCallbacks.insert(SKHTTPServerCallbackContainer(std::move(callback)));
-                    svr.Delete(path, [&](const httplib::Request& req, httplib::Response& res) {
-                        invoker.get()->invokeAsync([&](){
-                            jsi::Object request = jsi::Object::createFromHostObject(runtime, std::make_shared<HTTPRequestWrapper>(req));
-                            jsi::Object response = jsi::Object::createFromHostObject(runtime, std::make_shared<HTTPResponseWrapper>(res));
-                            callback.call(runtime, request, response);
-                        });
+                    if(!callback.isFunction(runtime)) {
+                        printf("Second argument not a function");
+                        return jsi::Value::undefined();
+                    }
+                    addCallbackForPath("delete", path, std::move(callback));
+                    svr.Delete(path, [&, this, path](const httplib::Request& req, httplib::Response& res) {
+                        executeCallbackForPath("delete", path, req, res);
                     });
                     return thisValue.asObject(runtime);
                 }
