@@ -7,7 +7,9 @@ buildscript {
         }
 
         dependencies {
-            classpath 'com.android.tools.build:gradle:3.5.3'
+            // Had to bump this from 3.5.3 otherwise errors occur after gradle
+            // needed to be updated to version 7 for JSK 17
+            classpath 'com.android.tools.build:gradle:4.2.0'
         }
     }
 }
@@ -41,6 +43,8 @@ android {
             version "3.7.0+"
         }
     }
+
+    ndkVersion "23.1.7779620"
 
     buildTypes {
         release {
