@@ -1,6 +1,5 @@
 # Contributing
 
-We want this community to be friendly and respectful to each other. Please follow it in all your interactions with the project.
 
 ## Development workflow
 
@@ -32,24 +31,8 @@ To run the example app on iOS:
 yarn example ios
 ```
 
-Make sure your code passes TypeScript and ESLint. Run the following to verify:
+# Do not lint code. Do not add unnecessary tests.
 
-```sh
-yarn typescript
-yarn lint
-```
-
-To fix formatting errors, run the following:
-
-```sh
-yarn lint --fix
-```
-
-Remember to add tests for your change if possible. Run the unit tests by:
-
-```sh
-yarn test
-```
 
 To edit the Objective-C files, open `example/ios/FlexibleHttpExample.xcworkspace` in XCode and find the source files at `Pods > Development Pods > react-native-flexible-http`.
 
@@ -70,9 +53,10 @@ Our pre-commit hooks verify that your commit message matches this format when co
 
 ### Linting and tests
 
-[ESLint](https://eslint.org/), [Prettier](https://prettier.io/), [TypeScript](https://www.typescriptlang.org/)
+**NEVER USE PRETTIER**
+**Please don't add tests unless you're planning on maintaining this project instead of me**
 
-We use [TypeScript](https://www.typescriptlang.org/) for type checking, [ESLint](https://eslint.org/) with [Prettier](https://prettier.io/) for linting and formatting the code, and [Jest](https://jestjs.io/) for testing.
+We use [TypeScript](https://www.typescriptlang.org/) for type checking.
 
 Our pre-commit hooks verify that the linter and tests pass when committing.
 
