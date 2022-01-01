@@ -1,6 +1,9 @@
 #include <jni.h>
-#include "example.h"
+#include <fbjni/fbjni.h>
+#include <jni/JavaScriptExecutorHolder.h>
 #include "react-native-flexible-http.h"
+#include <CallInvokerHolder.h>
+//#include <ReactCommon/CallInvoker.h>
 
 using namespace facebook;
 
@@ -15,7 +18,7 @@ Java_com_reactnativeflexiblehttp_FlexibleHttpModule_nativeMultiply(JNIEnv *env, 
 // Following the intuition that JNICALL functions always starts with JNIEnv, jclass as first 2 args, followed by our args
 // Also heavily adapted from https://github.com/mrousavy/react-native-multithreading/blob/5f9a91b9edb94ab260767831dafa2e55f91af407/android/src/main/cpp/cpp-adapter.cpp#L42
 extern "C" JNIEXPORT void JNICALL
-Java_com_reactnativeflexiblehttp_FlexibleHttpModule_initialize(JNIEnv *env, jclass clazz, 
+Java_com_reactnativeflexiblehttp_FlexibleHttpModule_initialize(JNIEnv *env, jclass clazz,
     jlong jsiRuntimePointer,
     jni::alias_ref<facebook::react::CallInvokerHolder::javaobject> jsCallInvokerHolder
     )
@@ -25,11 +28,11 @@ Java_com_reactnativeflexiblehttp_FlexibleHttpModule_initialize(JNIEnv *env, jcla
 //   jboolean isCopy;
 //   const char *docPathString = (env)->GetStringUTFChars(docPath, &isCopy); // This is might not be necessary, but my library moves files in the android file system, so this is just how to pass an android variable to the C++ size
 
-  install(*runtime, jsCallInvoker);
+  example::install(*runtime, jsCallInvoker);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_reactnativeflexiblehttp_FlexibleHttpModule_cleanup(JNIEnv *env, jclass clazz, jlong jsiPtr)
 {
-  cleanup(*reinterpret_cast<facebook::jsi::Runtime *>(jsiPtr));
+  example::cleanup(*reinterpret_cast<facebook::jsi::Runtime *>(jsiPtr));
 }

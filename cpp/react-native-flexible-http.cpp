@@ -21,7 +21,7 @@ static int currentJSIRuntimeIteration = 0;
 
 // String hash switch case implementation as seen here
 // https://learnmoderncpp.com/2020/06/01/strings-as-switch-case-labels/
-constexpr inline auto string_hash(const char *s) {
+constexpr inline unsigned long long string_hash(const char *s) {
     unsigned long long hash{}, c{};
     for (auto p = s; *p; ++p, ++c) {
         hash += *p << c;
@@ -29,7 +29,7 @@ constexpr inline auto string_hash(const char *s) {
     return hash;
 }
 
-constexpr inline auto operator"" _sh(const char *s, size_t) {
+constexpr inline unsigned long long operator"" _sh(const char *s, size_t) {
     return string_hash(s);
 }
 

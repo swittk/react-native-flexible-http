@@ -2,16 +2,19 @@ package com.reactnativeflexiblehttp;
 
 import androidx.annotation.NonNull;
 
+import com.facebook.react.bridge.JavaScriptContextHolder;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.module.annotations.ReactModule;
+import com.facebook.react.turbomodule.core.CallInvokerHolderImpl;
 import com.facebook.soloader.SoLoader;
 
 // In initialization, get CallInvoker for Android (https://github.com/react-native-community/discussions-and-proposals/issues/91#issuecomment-973847136)
 // This site here helps a lot with JSI initialization for me who knows little about Android-specific stuff
 // also inspired by here https://github.com/SudoPlz/sp-react-native-mqtt/blob/master/android/src/main/java/com/tuanpm/RCTMqtt/RCTMqttModule.java#L134:L137
+// Partially based on https://blog.notesnook.com/getting-started-react-native-jsi/
 @ReactModule(name = FlexibleHttpModule.NAME)
 public class FlexibleHttpModule extends ReactContextBaseJavaModule {
     public static final String NAME = "FlexibleHttp";
@@ -20,9 +23,7 @@ public class FlexibleHttpModule extends ReactContextBaseJavaModule {
     public FlexibleHttpModule(ReactApplicationContext reactContext) {
         super(reactContext);
         this.reactContext = reactContext;
-        // TODO: does this belong here
-        // Get jsCallInvoker https://github.com/react-native-community/discussions-and-proposals/issues/40#issuecomment-858375750
-        FlexibleHttpModule.install(this.reactContext, this.reactContext.getCatalystInstance().getJSCallInvokerHolder());
+        this.installLib(this.reactContext, this.reactContext.getJavaScriptContextHolder());
     }
 
     @Override
@@ -37,9 +38,9 @@ public class FlexibleHttpModule extends ReactContextBaseJavaModule {
                                            CallInvokerHolderImpl jsCallInvokerHolder);
     private static native void cleanup(long jsiRuntimePointer);
 
-
     // This is the method that will need to be called at module startup in order to initialize stuff
-    public static void install(ReactApplicationContext context, JavaScriptContextHolder jsContext) {
+    public void installLib(ReactApplicationContext context, JavaScriptContextHolder jsContext) {
+      // Get jsCallInvoker https://github.com/react-native-community/discussions-and-proposals/issues/40#issuecomment-858375750
       CallInvokerHolderImpl holder = (CallInvokerHolderImpl) context.getCatalystInstance().getJSCallInvokerHolder();
       FlexibleHttpModule.initialize(jsContext.get(), holder);
     }
@@ -47,7 +48,7 @@ public class FlexibleHttpModule extends ReactContextBaseJavaModule {
     // This method is equivalent to Objective-C's 'invalidate'
     @Override
     public void onCatalystInstanceDestroy() {
-        FlexibleHttpModule.cleanup(this.reactContext);
+        FlexibleHttpModule.cleanup(this.reactContext.getJavaScriptContextHolder().get());
         // FlexibleHttpModule.cleanup(this.getReactApplicationContext());
     }
 
