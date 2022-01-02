@@ -25,7 +25,7 @@ export default function App() {
       console.log('params are', req.params);
       res.set_content('Ur a noob');
     });
-    server.listen(8001);
+    server.listen(2500);
     return ()=>{
       server.stop();
     }

@@ -5,6 +5,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.facebook.react.bridge.JavaScriptContextHolder;
+import com.facebook.react.bridge.LifecycleEventListener;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -25,22 +26,22 @@ public class FlexibleHttpModule extends ReactContextBaseJavaModule {
     public FlexibleHttpModule(ReactApplicationContext reactContext) {
         super(reactContext);
         this.reactContext = reactContext;
-        Log.d("SwittFlexibleHTTP", "Context is " + reactContext);
-        ReactApplicationContext myContext = this.getReactApplicationContext();
-        Log.d("SwittFlexibleHTTP", "MyContext is " + myContext);
-//        this.initLib();
-      // Need to run this after context finished loading otherwise shit will break
-      new java.util.Timer().schedule(
-        new java.util.TimerTask() {
-          @Override
-          public void run() {
-            // your code here
-            Log.e("SwittRetry", "about to start in 5000 ms");
-            initLib();
-          }
-        },
-        5000
-      );
+//        Log.d("SwittFlexibleHTTP", "Context is " + reactContext);
+//        ReactApplicationContext myContext = this.getReactApplicationContext();
+//        Log.d("SwittFlexibleHTTP", "MyContext is " + myContext);
+////        this.initLib();
+//      // Need to run this after context finished loading otherwise shit will break
+//      new java.util.Timer().schedule(
+//        new java.util.TimerTask() {
+//          @Override
+//          public void run() {
+//            // your code here
+//            Log.e("SwittRetry", "about to start in 5000 ms");
+//            initLib();
+//          }
+//        },
+//        5000
+//      );
     }
 
       void initLib() {
@@ -92,6 +93,15 @@ public class FlexibleHttpModule extends ReactContextBaseJavaModule {
       Log.d("Switt", "Initialized lib");
     }
 
+    // This method is called automatically (defined in BaseJavaModule.java)
+    // "called on the appropriate method when a life cycle event occurs.
+    @Override
+    public void initialize() {
+      this.initLib();
+    }
+
+    // This method is called automatically (defined in BaseJavaModule.java)
+    // "called on the appropriate method when a life cycle event occurs.
     // This method is equivalent to Objective-C's 'invalidate'
     @Override
     public void onCatalystInstanceDestroy() {
