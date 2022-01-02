@@ -21,10 +21,10 @@ def safeExtGet(prop, fallback) {
 }
 
 android {
-    buildFeatures {
-        // This is needed for fbjni imports to work (see https://github.com/facebookincubator/fbjni/blob/main/docs/android_setup.md)
-        prefab true
-    }
+//    buildFeatures {
+//        // This is needed for fbjni imports to work (see https://github.com/facebookincubator/fbjni/blob/main/docs/android_setup.md)
+//        prefab true
+//    }
     compileSdkVersion safeExtGet('FlexibleHttp_compileSdkVersion', 29)
     defaultConfig {
         minSdkVersion safeExtGet('FlexibleHttp_minSdkVersion', 16)
@@ -65,8 +65,20 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
-    dependencies {
-      implementation 'com.facebook.fbjni:fbjni:0.2.2'
+
+  // Doing this following https://github.com/facebookincubator/fbjni/issues/50#issuecomment-788869153
+  // Final change that made this finally able to run on device (though still crashes due to sth else)
+  packagingOptions {
+    exclude("**/libfbjni.so")
+    exclude("**/libc++_shared.so")
+//    exclude 'lib/arm64-v8a/libfbjni.so'
+  }
+
+//    dependencies {
+//      implementation 'com.facebook.fbjni:fbjni:+'
+//    }
+    configurations {
+      all*.exclude module: 'fbjni-java-only'
     }
 }
 
@@ -77,8 +89,9 @@ repositories {
         url("$rootDir/../node_modules/react-native/android")
         // url("$rootDir/../node_modules/react-native/ReactCommon")
         // url("$rootDir/../node_modules/react-native/React")
-        url("$rootDir/../node_modules/react-native/ReactAndroid")
-        url("$rootDir/../node_modules/react-native/ReactAndroid/src/main/jni/third-party/folly")
+        url("$rootDir/../node_modules/react-native")
+//        url("$rootDir/../node_modules/react-native/ReactAndroid")
+//        url("$rootDir/../node_modules/react-native/ReactAndroid/src/main/jni/third-party/folly")
     }
     google()
     mavenCentral()
@@ -87,8 +100,8 @@ repositories {
 
 dependencies {
     //noinspection GradleDynamicVersion
-    implementation "com.facebook.react:react-native:+"  // From node_modules
+    implementation "com.facebook.react:react-native:+"
     // implementation 'com.facebook.fbjni:fbjni:+'
     // TODO: see if this line is needed
-    implementation 'com.facebook.fbjni:fbjni:0.2.2'
+//    implementation 'com.facebook.fbjni:fbjni:0.2.2'
 }

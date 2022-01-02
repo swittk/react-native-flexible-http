@@ -1,6 +1,6 @@
 #include <jni.h>
 #include <fbjni/fbjni.h>
-#include <jni/JavaScriptExecutorHolder.h>
+//#include <jni/JavaScriptExecutorHolder.h>
 #include "react-native-flexible-http.h"
 #include <CallInvokerHolder.h>
 //#include <ReactCommon/CallInvoker.h>

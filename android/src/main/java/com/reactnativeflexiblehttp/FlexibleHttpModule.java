@@ -1,5 +1,7 @@
 package com.reactnativeflexiblehttp;
 
+import android.util.Log;
+
 import androidx.annotation.NonNull;
 
 import com.facebook.react.bridge.JavaScriptContextHolder;
@@ -23,7 +25,48 @@ public class FlexibleHttpModule extends ReactContextBaseJavaModule {
     public FlexibleHttpModule(ReactApplicationContext reactContext) {
         super(reactContext);
         this.reactContext = reactContext;
-        this.installLib(this.reactContext, this.reactContext.getJavaScriptContextHolder());
+        Log.d("SwittFlexibleHTTP", "Context is " + reactContext);
+        ReactApplicationContext myContext = this.getReactApplicationContext();
+        Log.d("SwittFlexibleHTTP", "MyContext is " + myContext);
+//        this.initLib();
+      // Need to run this after context finished loading otherwise shit will break
+      new java.util.Timer().schedule(
+        new java.util.TimerTask() {
+          @Override
+          public void run() {
+            // your code here
+            Log.e("SwittRetry", "about to start in 5000 ms");
+            initLib();
+          }
+        },
+        5000
+      );
+    }
+
+      void initLib() {
+        ReactApplicationContext context = this.reactContext;
+        Log.d("Switt", "App info" + context.getApplicationInfo());
+      try {
+        // Currently crashing here
+      /*
+      Exception in native call
+      java.lang.NullPointerException: Attempt to invoke interface method 'com.facebook.react.bridge.JavaScriptContextHolder com.facebook.react.bridge.CatalystInstance.getJavaScriptContextHolder()' on a null object reference
+       */
+        JavaScriptContextHolder jsContext = context.getJavaScriptContextHolder();
+        this.installLib(this.reactContext, jsContext);
+      } catch(Error e) {
+        new java.util.Timer().schedule(
+          new java.util.TimerTask() {
+            @Override
+            public void run() {
+              // your code here
+              Log.e("SwittRetry", "about to retry in 5000 ms, error "+ e);
+              initLib();
+            }
+          },
+          5000
+        );
+      }
     }
 
     @Override
@@ -40,6 +83,9 @@ public class FlexibleHttpModule extends ReactContextBaseJavaModule {
 
     // This is the method that will need to be called at module startup in order to initialize stuff
     public void installLib(ReactApplicationContext context, JavaScriptContextHolder jsContext) {
+      Log.d("Switt", "Installing lib");
+      Log.d("Switt", "Context is" + context);
+      Log.d("Switt", "jsContext is" + jsContext);
       // Get jsCallInvoker https://github.com/react-native-community/discussions-and-proposals/issues/40#issuecomment-858375750
       CallInvokerHolderImpl holder = (CallInvokerHolderImpl) context.getCatalystInstance().getJSCallInvokerHolder();
       FlexibleHttpModule.initialize(jsContext.get(), holder);
@@ -56,7 +102,7 @@ public class FlexibleHttpModule extends ReactContextBaseJavaModule {
     static {
         try {
             // Used to load the 'native-lib' library on application startup.
-            System.loadLibrary("cpp");
+            System.loadLibrary("reactnativeflexiblehttp");
         } catch (Exception ignored) {
         }
     }

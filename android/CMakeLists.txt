@@ -2,9 +2,25 @@ cmake_minimum_required(VERSION 3.4.1)
 
 set (CMAKE_VERBOSE_MAKEFILE ON)
 set (CMAKE_CXX_STANDARD 17)
+set (NODE_MODULES_DIR "../node_modules")
+set (RN_SO_DIR ${NODE_MODULES_DIR}/react-native/ReactAndroid/src/main/jni/first-party/react/jni)
+set (FBJNI_HEADERS_DIR ${RN_SO_DIR}/../../fbjni/headers)
+# added a bunch of code from reanimated repo
+#if(${REACT_NATIVE_TARGET_VERSION} LESS 66)
+  set (
+          INCLUDE_JSI_CPP
+          "${NODE_MODULES_DIR}/react-native/ReactCommon/jsi/jsi/jsi.cpp"
+  )
+#  set (
+#          INCLUDE_JSIDYNAMIC_CPP
+#          "${NODE_MODULES_DIR}/react-native/ReactCommon/jsi/jsi/JSIDynamic.cpp"
+#  )
+#endif()
 
 set (BUILD_DIR ${CMAKE_SOURCE_DIR}/build)
 set (PACKAGE_NAME "reactnativeflexiblehttp")
+
+#file (GLOB LIBFBJNI_INCLUDE_DIR ${FBJNI_HEADERS_DIR})
 
 # find fbjni package
 find_package(fbjni REQUIRED CONFIG)
@@ -16,6 +32,7 @@ find_package(fbjni REQUIRED CONFIG)
 # but actually more like https://github.com/barthap/discovering-turbomodules/blob/main/android/CMakeLists.txt
 include_directories(
         ../cpp
+        "${FBJNI_HEADERS_DIR}"
         ../node_modules/react-native/React
         ../node_modules/react-native/React/Base
         ../node_modules/react-native/ReactCommon
@@ -36,54 +53,20 @@ include_directories(
 add_library(
     ${PACKAGE_NAME}
             SHARED
-            ../node_modules/react-native/ReactCommon/jsi/jsi/jsi.cpp
+            ${INCLUDE_JSI_CPP}
+            ${INCLUDE_JSIDYNAMIC_CPP}
+#           ../node_modules/react-native/ReactCommon/jsi/jsi/jsi.cpp
             ../node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/turbomodule/core/jni/ReactCommon/CallInvokerHolder.cpp
             # ../node_modules/react-native/ReactCommon/turbomodule/core/TurboModule.cpp
             ../cpp/react-native-flexible-http.cpp
             cpp-adapter.cpp
 )
 
+#add_library(
+#        turbomodulejsijni
+#        # Sets the library as a shared library.
+#        SHARED
+#)
+
 # link fbjni and logger to package
 target_link_libraries(${PACKAGE_NAME} fbjni::fbjni android log)
-
-# file (GLOB LIBFBJNI_INCLUDE_DIR "${BUILD_DIR}/fbjni-*-headers.jar/")
-
-# find libraries
-
-# file (GLOB LIBRN_DIR "${BUILD_DIR}/react-native-0*/jni/${ANDROID_ABI}")
-# file (GLOB LIBJSC_DIR "${BUILD_DIR}/android-jsc*.aar/jni/${ANDROID_ABI}")
-# file (GLOB LIBREANIMATED_DIR "${BUILD_DIR}/react-native-reanimated-*.aar/jni/${ANDROID_ABI}")
-
-
-# find_library(
-#         LOG_LIB
-#         log
-# )
-# find_library(
-#         FBJNI_LIB
-#         fbjni
-#         PATHS ${LIBRN_DIR}
-#         NO_CMAKE_FIND_ROOT_PATH
-# )
-
-# find_library(
-#         REACT_NATIVE_JNI_LIB
-#         reactnativejni
-#         PATHS ${LIBRN_DIR}
-#         NO_CMAKE_FIND_ROOT_PATH
-# )
-
-# find_library(
-#         REACT_NATIVE_UTILS_LIB
-#         reactnativeutilsjni
-#         PATHS ${LIBRN_DIR}
-#         NO_CMAKE_FIND_ROOT_PATH
-# )
-
-# # linking
-
-# find_library(
-#         FBJNI_LIBRARY fbjni
-#         PATHS ${libfbjni_link_DIRS}
-#         NO_CMAKE_FIND_ROOT_PATH
-# )
