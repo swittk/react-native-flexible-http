@@ -71,4 +71,6 @@ Coming from development using primarily only C and C-like languages, I never exp
 
 
 - build.gradle configuration
-    - needs `prefab true` in order to get fbjni imports (see https://github.com/facebookincubator/fbjni/blob/main/docs/android_setup.md)
+    - (No longer using prefabs since it conflicts with other stuff) ~~~needs `prefab true` in order to get fbjni imports (see https://github.com/facebookincubator/fbjni/blob/main/docs/android_setup.md)~~~
+
+- 02/01/2021 now building, but seems need to fix some bugs with jni stuff (jobject is an invalid JNI transition frame reference or invalid reference)

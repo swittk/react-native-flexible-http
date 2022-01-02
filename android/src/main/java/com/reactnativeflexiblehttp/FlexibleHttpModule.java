@@ -89,6 +89,7 @@ public class FlexibleHttpModule extends ReactContextBaseJavaModule {
       // Get jsCallInvoker https://github.com/react-native-community/discussions-and-proposals/issues/40#issuecomment-858375750
       CallInvokerHolderImpl holder = (CallInvokerHolderImpl) context.getCatalystInstance().getJSCallInvokerHolder();
       FlexibleHttpModule.initialize(jsContext.get(), holder);
+      Log.d("Switt", "Initialized lib");
     }
 
     // This method is equivalent to Objective-C's 'invalidate'
